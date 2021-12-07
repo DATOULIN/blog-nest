@@ -21,6 +21,7 @@ export class ArticleService {
 
   /**
    * 查询是否有该文章
+   * id 文章id
    */
   async findOne(id: string): Promise<any | undefined> {
     const sql = `
@@ -42,6 +43,9 @@ export class ArticleService {
 
   /**
    * 查询所有文章列表
+   * pageIndex 第几条
+   * pageSize 一页显示几条
+   * keywords 搜索文章标题
    */
   async queryAllArticleList(query: any): Promise<any> {
     const { pageIndex = 1, pageSize = 10, keywords = '' } = query;
@@ -64,7 +68,7 @@ export class ArticleService {
       WHERE
         a.title LIKE '%${keywords}%'
       ORDER BY
-        id DESC
+        a.create_time DESC
       LIMIT ${currentIndex}, ${pageSize}
     `;
     const articleList: any[] = await sqlSelectFUNC(queryArticleListSQL);
@@ -98,18 +102,23 @@ export class ArticleService {
 
   /**
    * 创建文章
+   * title 标题
+   * content 内容
+   * userId 用户id
+   * categoryId 分类id
+   * file 文件
    */
   async createArticle(file, body: any): Promise<any> {
-    const { title, content, userid, categoryId } = body;
+    const { title, content, userId, categoryId } = body;
     const [fileName, extName] = file.originalname.split('.');
-    const file_name = `${userid}_${fileName}${new Date().getTime()}.${extName}`;
+    const file_name = `${userId}_${fileName}${new Date().getTime()}.${extName}`;
     const IMG_URL = `/public/images/articles/${file_name}`;
     Upload('images/articles', file_name, file); // 文件上传
     const createArticleSQL = `
       INSERT INTO articles
         (title, content, like_count, views, comment_count, cover_url,user_id,category_id,create_time)
       VALUES
-        ('${title}', '${content}', 0, 0, 0, '${IMG_URL}','${userid}','${categoryId}','${config.nowDate}');
+        ('${title}', '${content}', 0, 0, 0, '${IMG_URL}','${userId}','${categoryId}','${config.nowDate}');
     `;
 
     await sqlFUNC(createArticleSQL);
@@ -121,6 +130,10 @@ export class ArticleService {
 
   /**
    * 更新文章
+   * id 文章id
+   * title 标题
+   * content 内容
+   * userId 用户id
    */
   async updateArticle(body: any): Promise<any> {
     const { id, title, content, userId } = body;
@@ -152,6 +165,7 @@ export class ArticleService {
 
   /**
    * 删除文章
+   * id 文章id
    */
   async deleteArticle(body: any): Promise<any> {
     const { id } = body;
@@ -177,10 +191,11 @@ export class ArticleService {
 
   /**
    * 获取单条文章
+   * id 文章id
    */
   async getArticleById(query: any): Promise<any> {
-    const { articleId } = query;
-    const article = await this.findOne(articleId);
+    const { id } = query;
+    const article = await this.findOne(id);
     if (!article) {
       return {
         code: 400,
@@ -196,11 +211,11 @@ export class ArticleService {
       ON a.user_id = u.id 
       LEFT JOIN category c 
       ON a.category_id = c.id
-      WHERE a.id=${articleId}
+      WHERE a.id=${id}
     `;
     const articleList: any[] = await sqlSelectFUNC(getArticleByIdSQL);
     // 先查询当前浏览量，再增加
-    const viewsSQL = `SELECT views FROM articles WHERE id = ${articleId}`;
+    const viewsSQL = `SELECT views FROM articles WHERE id = ${id}`;
     const views = await sqlSelectFUNC(viewsSQL);
     const addViewsSQL = `
       UPDATE
@@ -208,7 +223,7 @@ export class ArticleService {
       SET
         views=${views[0].views + 1}
       WHERE
-        id = ${articleId}`;
+        id = ${id}`;
     await sqlFUNC(addViewsSQL);
     return {
       code: 200,
@@ -220,6 +235,10 @@ export class ArticleService {
 
   /**
    * 查询某个用户下的所有文章
+   * userid 用户id
+   * pageIndex 第几条
+   * pageSize 一页显示几条
+   * keywords 搜索文章标题
    * */
   async getArticleFromUser(query: any): Promise<any> {
     const { userId, pageIndex = 1, pageSize = 10, keywords = '' } = query;
@@ -273,6 +292,7 @@ export class ArticleService {
     const { categoryId, pageIndex = 1, pageSize = 10, keywords = '' } = query;
     const currentIndex =
       (pageIndex - 1) * pageSize < 0 ? 0 : (pageIndex - 1) * pageSize;
+
     const getArticleFromCategorySQL = `
       SELECT 
       a.id,a.title,a.content,a.cover_url,a.views,a.like_count,a.create_time,u.username createBy,a.comment_count
